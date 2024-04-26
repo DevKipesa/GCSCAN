@@ -1,6 +1,6 @@
 {
   "canisters": {
-    "message_board": {
+    "gcs": {
       "type": "custom",
       "main": "src/index.ts",
       "candid": "src/index.did",
