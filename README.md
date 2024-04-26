@@ -129,22 +129,6 @@ AZLE_AUTORELOAD=true dfx deploy
 9. Stop a local replica
 - `dfx stop`
 
-## Interaction with the canister
-
-When a canister is deployed, `dfx deploy` produces a link to the Candid interface in the shell output.
-
-Candid interface provides a simple UI where you can interact with functions in the canister.
-
-On the other hand, you can interact with the canister using `dfx` via CLI:
-
-### get canister id:
-- `dfx canister id <CANISTER_NAME>`
-Example:
-- `dfx canister id message_board`
-Response:
-```
-bkyz2-fmaaa-aaaaa-qaaaq-cai
-```
 
 
     "body": "some important things",
