@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Server, StableBTreeMap, ic } from 'azle';
 import express from 'express';
+import bcrypt from 'bcrypt';
 
 /**
  * `usersStorage` - it's a key-value datastructure that is used to store users.
@@ -17,14 +18,14 @@ import express from 'express';
 /**
  This type represents a user
  */
- class User {
-   id: string;
-   username: string;
-   password: string;
-   role: "mentor" | "mentee";
-   expertise: "ALGORAND" | "SUI" | "ETHEREUM" | "ICP" | "BITCOIN" | "SOLIDITY" | "SOLANA" | null;
-   createdAt: Date;
-   updatedAt: Date | null
+class User {
+    id: string;
+    username: string;
+    password: string;
+    role: "mentor" | "mentee";
+    expertise: "ALGORAND" | "SUI" | "ETHEREUM" | "ICP" | "BITCOIN" | "SOLIDITY" | "SOLANA" | null;
+    createdAt: Date;
+    updatedAt: Date | null;
 }
 
 /**
@@ -49,53 +50,41 @@ export default Server(() => {
    const app = express();
    app.use(express.json());
 
-   // User management logic begins here
-   app.post("/register", (req, res) => {
-      /**
-       * Registers a new user with the provided user information.
-       * 
-       * @param {Object} req - The request object containing user information in the request body.
-       * @param {string} req.body.username - The username of the user to be registered.
-       * @param {string} req.body.password - The password of the user to be registered.
-       * @param {string} req.body.role - The role of the user to be registered (either "mentor" or "mentee").
-       * @param {string} req.body.expertise - The expertise of the user to be registered (e.g., "Algorand", "Sui", "Ethereum", "ICP", "Bitcoin", "Solidity", "Solana").
-       * @param {Object} res - The response object to send the registration status and user details.
-       * 
-       * @returns {Object} - The response containing the registration status and user details in JSON format.
-       */
-      const { username, password, role, expertise } = req.body;
-      const user = new User();
-      user.id = uuidv4();
-      user.username = username;
-      user.password = password;
-      user.role = role;
-      user.expertise = expertise;
-      user.createdAt = getCurrentDate();
-      user.updatedAt = null;
-      usersStorage.insert(user.id, user);
-      res.status(200).json({ message: "User registered successfully", user: user });
-   })
+   // Route to register a new user
+    app.post("/register", async (req, res) => {
+        try {
+            const { username, password, role, expertise } = req.body;
+            const hashedPassword = await bcrypt.hash(password, 10);
+            const user = new User();
+            user.id = uuidv4();
+            user.username = username;
+            user.password = hashedPassword;
+            user.role = role;
+            user.expertise = expertise;
+            user.createdAt = new Date();
+            user.updatedAt = null;
+            usersStorage.insert(user.id, user);
+            res.status(201).json({ message: "User registered successfully", user: { ...user, password: undefined } });
+        } catch (error) {
+            res.status(500).json({ message: "Failed to register user", error: error.message });
+        }
+    });
 
-   app.post("/login", (req, res) => {
-      /**
-       * Logs in a user with the provided username and password.
-       * 
-       * @param {Object} req - The request object containing the username and password in the request body.
-       * @param {string} req.body.username - The username of the user trying to log in.
-       * @param {string} req.body.password - The password of the user trying to log in.
-       * @param {Object} res - The response object to send the login status and user details.
-       * 
-       * @returns {Object} - The response containing the login status and user details in JSON format.
-       */
-      const { username, password } = req.body;
-      const user = usersStorage.values().filter(v => v.username === username)[0];
-      if (user && user.password === password) {
-         loginData.insert(user.id, user);
-         res.status(200).json({ message: "User logged in successfully", user: user });
-      } else {
-         res.status(401).json({ message: "Invalid username or password" });
-      }
-   })
+   // Route to login a user
+    app.post("/login", async (req, res) => {
+        try {
+            const { username, password } = req.body;
+            const user = usersStorage.values().find(v => v.username === username);
+            if (user && await bcrypt.compare(password, user.password)) {
+                loginData.insert(user.id, user);
+                res.status(200).json({ message: "User logged in successfully", user: { ...user, password: undefined } });
+            } else {
+                res.status(401).json({ message: "Invalid username or password" });
+            }
+        } catch (error) {
+            res.status(500).json({ message: "Login failed", error: error.message });
+        }
+    });
 
    app.post("/logout/:userId", (req, res) => {
       /**
@@ -234,6 +223,13 @@ export default Server(() => {
       // Logic to order cleaning services...
       res.status(200).json({ message: "Cleaning services ordered successfully" });
    })
+
+   // Additional routes for garbage collection management (place holder comments and logic)
+    app.post("/schedule-collection/:userId", (req, res) => {
+        // Placeholder logic to schedule garbage collection
+        res.status(200).json({ message: "Garbage collection scheduled successfully", details: req.body });
+    });
+
    // Garbage collection management logic ends here
 
    return app.listen();
