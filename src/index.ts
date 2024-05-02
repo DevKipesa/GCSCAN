@@ -50,80 +50,115 @@ export default Server(() => {
    const app = express();
    app.use(express.json());
 
-   // Route to register a new user
-    app.post("/register", async (req, res) => {
-        try {
-            const { username, password, role, expertise } = req.body;
-            const hashedPassword = await bcrypt.hash(password, 10);
-            const user = new User();
-            user.id = uuidv4();
-            user.username = username;
-            user.password = hashedPassword;
-            user.role = role;
-            user.expertise = expertise;
-            user.createdAt = new Date();
-            user.updatedAt = null;
-            usersStorage.insert(user.id, user);
-            res.status(201).json({ message: "User registered successfully", user: { ...user, password: undefined } });
-        } catch (error) {
-            res.status(500).json({ message: "Failed to register user", error: error.message });
+ 
+/**
+ * Route to register a new user
+ * @param {Object} req - The request object containing user registration data.
+ * @param {string} req.body.username - The username of the new user.
+ * @param {string} req.body.password - The password of the new user.
+ * @param {string} req.body.role - The role of the new user.
+ * @param {string} req.body.expertise - The expertise of the new user.
+ * @param {Object} res - The response object to send the registration status.
+ * @returns {Object} - The response containing the registration status and user details.
+ */
+app.post("/register", async (req, res) => {
+    try {
+        const { username, password, role, expertise } = req.body;
+        // Validate input
+        if (!username || !password || !role) {
+            return res.status(400).json({ message: "Username, password, and role are required" });
         }
-    });
+        // Hash password
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const user = new User();
+        user.id = uuidv4();
+        user.username = username;
+        user.password = hashedPassword;
+        user.role = role;
+        user.expertise = expertise;
+        user.createdAt = getCurrentDate();
+        user.updatedAt = null;
+        usersStorage.insert(user.id, user);
+        res.status(201).json({ message: "User registered successfully", user: { ...user, password: undefined } });
+    } catch (error) {
+        console.error("Error registering user:", error);
+        res.status(500).json({ message: "Failed to register user" });
+    }
+});
 
-   // Route to login a user
-    app.post("/login", async (req, res) => {
-        try {
-            const { username, password } = req.body;
-            const user = usersStorage.values().find(v => v.username === username);
-            if (user && await bcrypt.compare(password, user.password)) {
-                loginData.insert(user.id, user);
-                res.status(200).json({ message: "User logged in successfully", user: { ...user, password: undefined } });
-            } else {
-                res.status(401).json({ message: "Invalid username or password" });
-            }
-        } catch (error) {
-            res.status(500).json({ message: "Login failed", error: error.message });
+
+  /**
+ * Route to login a user
+ * @param {Object} req - The request object containing user login credentials.
+ * @param {string} req.body.username - The username of the user.
+ * @param {string} req.body.password - The password of the user.
+ * @param {Object} res - The response object to send the login status.
+ * @returns {Object} - The response containing the login status and user details.
+ */
+app.post("/login", async (req, res) => {
+    try {
+        const { username, password } = req.body;
+        // Validate input
+        if (!username || !password) {
+            return res.status(400).json({ message: "Username and password are required" });
         }
-    });
+        const user = usersStorage.values().find(v => v.username === username);
+        if (user && await bcrypt.compare(password, user.password)) {
+            loginData.insert(user.id, user);
+            res.status(200).json({ message: "User logged in successfully", user: { ...user, password: undefined } });
+        } else {
+            res.status(401).json({ message: "Invalid username or password" });
+        }
+    } catch (error) {
+        console.error("Error logging in user:", error);
+        res.status(500).json({ message: "Login failed" });
+    }
+});
 
-   app.post("/logout/:userId", (req, res) => {
-      /**
-       * Logs out a user by removing the login session from the `loginData` storage.
-       * 
-       * @param {Object} req - The request object containing the user id in the request parameters.
-       * @param {string} req.params.userId - The id of the user to be logged out.
-       * @param {Object} res - The response object to send the logout status.
-       * 
-       * @returns {Object} - The response containing the logout status in JSON format.
-       */
-      const { userId } = req.params;
-      const deletedSession = loginData.remove(userId);
-      if (deletedSession) {
-         res.status(200).json({ message: "User logged out successfully" });
-      } else {
-         res.status(401).json({ message: "User not logged in" });
-      }
-   })
 
-   app.get("/users/:userId", (req, res) => {
-      /**
-       * Retrieves a user by its ID and sends the user details in the response.
-       * 
-       * @param {Object} req - The request object containing the user ID in the request parameters.
-       * @param {string} req.params.userId - The ID of the user to be retrieved.
-       * @param {Object} res - The response object to send the user details or a "User not found" message.
-       * 
-       * @returns {Object} - The response containing the user details in JSON format if the user is found, 
-       * or a "User not found" message with status code 404 if the user is not found.
-       */
-      const { userId } = req.params;
-      const user = usersStorage.get(userId).Some;
-      if (user) {
-         res.status(200).json(user);
-      } else {
-         res.status(404).json({ message: "User not found" });
-      }
-   })
+
+   * Route to logout a user
+ * @param {Object} req - The request object containing the user id.
+ * @param {string} req.params.userId - The id of the user to be logged out.
+ * @param {Object} res - The response object to send the logout status.
+ * @returns {Object} - The response containing the logout status.
+ */
+app.post("/logout/:userId", (req, res) => {
+    try {
+        const { userId } = req.params;
+        const deletedSession = loginData.remove(userId);
+        if (deletedSession) {
+            res.status(200).json({ message: "User logged out successfully" });
+        } else {
+            res.status(401).json({ message: "User not logged in" });
+        }
+    } catch (error) {
+        console.error("Error logging out user:", error);
+        res.status(500).json({ message: "Logout failed" });
+    }
+});
+
+/**
+ * Route to get user details
+ * @param {Object} req - The request object containing the user id.
+ * @param {string} req.params.userId - The id of the user to retrieve details for.
+ * @param {Object} res - The response object to send the user details.
+ * @returns {Object} - The response containing the user details.
+ */
+app.get("/users/:userId", (req, res) => {
+    try {
+        const { userId } = req.params;
+        const user = usersStorage.get(userId).Some;
+        if (user) {
+            res.status(200).json(user);
+        } else {
+            res.status(404).json({ message: "User not found" });
+        }
+    } catch (error) {
+        console.error("Error fetching user:", error);
+        res.status(500).json({ message: "Failed to fetch user" });
+    }
+});
 
    // Garbage collection management logic begins here
    app.post("/schedule-collection/:userId", (req, res) => {
